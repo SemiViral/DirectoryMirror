@@ -1,10 +1,28 @@
-﻿using System;
+﻿using System.Threading;
 
 namespace DirectoryMirror {
     public static class Program {
-        static void Main(string[] args) {
+        private static DirectoryWatcher _watcher;
+        private static ManualResetEvent _resetEvent;
 
-            Console.WriteLine("Hello World!");
+        private static bool _quit;
+
+        public static bool Quit {
+            get => _quit;
+            set {
+                if (value) {
+                    _resetEvent.Set();
+                }
+            }
+        }
+
+        private static void Main(string[] args) {
+            _watcher = new DirectoryWatcher(1000, @"C:\Users\semiv\OneDrive\Documents\Test", @"C:\Users\semiv\Downloads\TestCopyTo");
+            _resetEvent = new ManualResetEvent(false);
+
+            _watcher.Start();
+
+            _resetEvent.WaitOne();
         }
     }
 }

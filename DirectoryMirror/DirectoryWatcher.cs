@@ -19,17 +19,25 @@ namespace DirectoryMirror {
             MirrorChild = Path.GetFullPath(mirrorChild);
         }
 
+        public void Start() {
+            _pollTimer.Start();
+        }
+
         private void pollTimerElapsed(object source, ElapsedEventArgs args) {
-            DirectoryInfo parentInfo = new DirectoryInfo(MirrorParent);
+            new DirectoryInfo(MirrorParent)
+                .EnumerateFiles()
+                .ForEach(CheckCopyFile);
+        }
 
-            foreach (FileInfo info in parentInfo.EnumerateFiles()) {
-                if (!_fileCache.Keys.Contains(info.FullName)) {
-                    continue;
-                }
-
-                _fileCache[info.FullName] = DateTime.Now;
-                info.CopyTo(MirrorChild);
+        private void CheckCopyFile(FileInfo info) {
+            if (!_fileCache.Keys.Contains(info.FullName)) {
+                return;
             }
+
+            _fileCache[info.FullName] = DateTime.Now;
+            info.CopyTo(MirrorChild);
+
+            Console.WriteLine($"Copied {info.FullName}");
         }
 
         private Timer _pollTimer;
