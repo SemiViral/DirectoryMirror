@@ -4,13 +4,27 @@ namespace DirectoryMirror {
     public class FileCache {
         private string[] _fullNames;
         private object _cacheLock;
+        private int _cacheIndexes;
 
-        private long CacheIndexes { get{ set; }
+        public int Length {
+            get => _cacheIndexes;
+            private set {
+                _cacheIndexes = value;
+
+                if (_cacheIndexes >= _fullNames.Length / 2) {
+                    string[] tempArray = new string[_fullNames.Length * 2];
+
+                    Array.Copy(_fullNames, tempArray, _fullNames.Length);
+
+                    _fullNames = tempArray;
+                }
+            }
+        }
 
         public FileCache() {
             _fullNames = new string[2];
             _cacheLock = new object();
-            _cacheIndexes = 0;
+            Length = 0;
         }
 
         public string this[string index] {
@@ -18,7 +32,7 @@ namespace DirectoryMirror {
                 lock (_cacheLock) {
                     int indexOf = Array.IndexOf(_fullNames, index);
 
-                    return indexOf == -1 ? throw new IndexOutOfRangeException($"Index '{index}' does not exist."); : _fullNames[indexOf];
+                    return indexOf == -1 ? throw new IndexOutOfRangeException($"Index '{index}' does not exist.") : _fullNames[indexOf];
                 }
             }
 
@@ -27,7 +41,7 @@ namespace DirectoryMirror {
                     int indexOf = Array.IndexOf(_fullNames, index);
 
                     if (indexOf == -1) {
-                        _fullNames[CacheIndexes] = value;
+                        _fullNames[Length] = value;
                         _cacheIndexes++;
                     } else {
                         _fullNames[indexOf] = value;
