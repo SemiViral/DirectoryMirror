@@ -24,23 +24,27 @@ namespace DirectoryMirror {
         }
 
         private void pollTimerElapsed(object source, ElapsedEventArgs args) {
-            new DirectoryInfo(MirrorParent)
-                .EnumerateFiles()
-                .ForEach(CheckCopyFile);
-        }
+            DirectoryInfo dirInfo = new DirectoryInfo(MirrorParent);
 
-        private void CheckCopyFile(FileInfo info) {
-            if (!_fileCache.Keys.Contains(info.FullName)) {
-                return;
+            lock (_fileCacheLock) {
+                foreach (FileInfo fileInfo in dirInfo.EnumerateFiles()) {
+                    if (!_fileCache.Keys.Contains(fileInfo.FullName)) {
+                        _fileCache.Add(fileInfo.FullName, fileInfo.LastAccessTimeUtc);
+                    }
+
+                    if (fileInfo.LastAccessTimeUtc > _fileCache[fileInfo.FullName]) {
+                        fileInfo.CopyTo(MirrorChild);
+
+                        Console.WriteLine($"Copied {fileInfo.FullName}");
+
+                        return;
+                    }
+                }
             }
-
-            _fileCache[info.FullName] = DateTime.Now;
-            info.CopyTo(MirrorChild);
-
-            Console.WriteLine($"Copied {info.FullName}");
         }
 
         private Timer _pollTimer;
         private Dictionary<string, DateTime> _fileCache { get; }
+        private object _fileCacheLock { get; set; }
     }
 }
