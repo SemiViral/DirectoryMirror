@@ -6,11 +6,18 @@ using System.Timers;
 
 namespace DirectoryMirror {
     public class DirectoryWatcher {
+        private Timer _pollTimer;
+        private Dictionary<string, DateTime> _parentFileCache { get; }
+        private Dictionary<string, DateTime> _childFileCache { get; }
+        private object _fileCacheLock { get; }
+
         public string MirrorParent { get; set; }
         public string MirrorChild { get; set; }
 
         public DirectoryWatcher(int pollIntreval, string mirrorParent, string mirrorChild) {
-            _fileCache = new Dictionary<string, DateTime>();
+            _parentFileCache = new Dictionary<string, DateTime>();
+            _childFileCache = new Dictionary<string, DateTime>();
+            _fileCacheLock = new object();
 
             _pollTimer = new Timer(pollIntreval);
             _pollTimer.Elapsed += pollTimerElapsed;
@@ -24,15 +31,16 @@ namespace DirectoryMirror {
         }
 
         private void pollTimerElapsed(object source, ElapsedEventArgs args) {
-            DirectoryInfo dirInfo = new DirectoryInfo(MirrorParent);
+            DirectoryInfo parentDirInfo = new DirectoryInfo(MirrorParent);
+            DirectoryInfo childDirInfo = new DirectoryInfo(MirrorParent);
 
             lock (_fileCacheLock) {
                 foreach (FileInfo fileInfo in dirInfo.EnumerateFiles()) {
-                    if (!_fileCache.Keys.Contains(fileInfo.FullName)) {
-                        _fileCache.Add(fileInfo.FullName, fileInfo.LastAccessTimeUtc);
+                    if (!_parentFileCache.Keys.Contains(fileInfo.FullName)) {
+                        _parentFileCache.Add(fileInfo.FullName, fileInfo.LastAccessTimeUtc);
                     }
 
-                    if (fileInfo.LastAccessTimeUtc > _fileCache[fileInfo.FullName]) {
+                    if (fileInfo.LastAccessTimeUtc > _parentFileCache[fileInfo.FullName]) {
                         fileInfo.CopyTo(MirrorChild);
 
                         Console.WriteLine($"Copied {fileInfo.FullName}");
@@ -43,8 +51,19 @@ namespace DirectoryMirror {
             }
         }
 
-        private Timer _pollTimer;
-        private Dictionary<string, DateTime> _fileCache { get; }
-        private object _fileCacheLock { get; set; }
+        private void Initialise() {
+            DirectoryInfo parentDirInfo = new DirectoryInfo(MirrorParent);
+            DirectoryInfo childDirInfo = new DirectoryInfo(MirrorParent);
+
+            lock (_fileCacheLock) {
+                foreach (FileInfo file in parentDirInfo.EnumerateFiles()) {
+                    _parentFileCache.Add(file.FullName, file.LastWriteTimeUtc);
+                }
+
+                foreach (FileInfo file in childDirInfo.EnumerateFiles()) {
+                    _childFileCache.Add(file.FullName, file.LastWriteTimeUtc);
+                }
+            }
+        }
     }
 }
