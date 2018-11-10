@@ -1,8 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace DirectoryMirror {
-    class CacheFile {
+    public class CacheFile {
+        public string FullName { get; }
+        public DateTime LastWriteTimeUtc { get; set; }
+
+        public CacheFile(string fullName, DateTime lastWriteTimeUtc) {
+            FullName = fullName;
+            LastWriteTimeUtc = lastWriteTimeUtc;
+        }
     }
 }
