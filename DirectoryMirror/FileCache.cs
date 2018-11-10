@@ -2,7 +2,7 @@
 
 namespace DirectoryMirror {
     public class FileCache {
-        private string[] _fullNames;
+        private CacheFile[] files;
         private object _cacheLock;
         private int _cacheIndexes;
 
@@ -11,43 +11,80 @@ namespace DirectoryMirror {
             private set {
                 _cacheIndexes = value;
 
-                if (_cacheIndexes >= _fullNames.Length / 2) {
-                    string[] tempArray = new string[_fullNames.Length * 2];
+                if (_cacheIndexes >= files.Length / 2) {
+                    CacheFile[] tempArray = new CacheFile[files.Length * 2];
 
-                    Array.Copy(_fullNames, tempArray, _fullNames.Length);
+                    Array.Copy(files, tempArray, files.Length);
 
-                    _fullNames = tempArray;
+                    files = tempArray;
                 }
             }
         }
 
-        public FileCache() {
-            _fullNames = new string[2];
+        public DateTime LastWriteTimeUtc { get; set; }
+
+        public FileCache(DateTime lastWriteTimeUtc) {
+            files = new CacheFile[2];
             _cacheLock = new object();
             Length = 0;
+
+            LastWriteTimeUtc = lastWriteTimeUtc;
         }
 
-        public string this[string index] {
+        public CacheFile this[CacheFile index] {
             get {
                 lock (_cacheLock) {
-                    int indexOf = Array.IndexOf(_fullNames, index);
+                    int indexOf = Array.IndexOf(files, index);
 
-                    return indexOf == -1 ? throw new IndexOutOfRangeException($"Index '{index}' does not exist.") : _fullNames[indexOf];
+                    return indexOf == -1 ? null : files[indexOf];
                 }
             }
 
             set {
                 lock (_cacheLock) {
-                    int indexOf = Array.IndexOf(_fullNames, index);
+                    int indexOf = Array.IndexOf(files, index);
 
                     if (indexOf == -1) {
-                        _fullNames[Length] = value;
-                        _cacheIndexes++;
+                        files[Length] = value;
+                        Length++;
                     } else {
-                        _fullNames[indexOf] = value;
+                        files[indexOf] = value;
                     }
                 }
             }
+        }
+
+        public CacheFile this[string index] {
+            get {
+                lock (_cacheLock) {
+                    int indexOf = IndexOf(files, index);
+
+                    return indexOf == -1 ? null : files[indexOf];
+                }
+            }
+
+            set {
+                lock (_cacheLock) {
+                    int indexOf = IndexOf(files, index);
+
+                    if (indexOf == -1) {
+                        files[Length] = value;
+                        Length++;
+                    } else {
+                        files[indexOf] = value;
+                    }
+                }
+            }
+        }
+
+        private int IndexOf(CacheFile[] files, string index) {
+            for (int i = 0; i < files.Length; i++) {
+                if (files[i].FullName.Equals(index)) {
+                    return i;
+                }
+            }
+
+            return -1;
         }
     }
 }

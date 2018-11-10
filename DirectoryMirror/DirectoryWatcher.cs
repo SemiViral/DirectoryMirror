@@ -6,64 +6,89 @@ using System.Timers;
 
 namespace DirectoryMirror {
     public class DirectoryWatcher {
+        #region MEMBERS
+
         private Timer _pollTimer;
-        private Dictionary<string, DateTime> _parentFileCache { get; }
-        private Dictionary<string, DateTime> _childFileCache { get; }
         private object _fileCacheLock { get; }
+        private FileCache _parentCache { get; set; }
+        private List<FileCache> _childCaches { get; set; }
 
-        public string MirrorParent { get; set; }
-        public string MirrorChild { get; set; }
+        public string MirrorParentPath { get; set; }
+        public List<string> MirrorChildrenPaths { get; set; }
 
-        public DirectoryWatcher(int pollIntreval, string mirrorParent, string mirrorChild) {
-            _parentFileCache = new Dictionary<string, DateTime>();
-            _childFileCache = new Dictionary<string, DateTime>();
-            _fileCacheLock = new object();
+        #endregion
 
+        public DirectoryWatcher(int pollIntreval, string mirrorParent, params string[] mirrorChildren) {
             _pollTimer = new Timer(pollIntreval);
             _pollTimer.Elapsed += pollTimerElapsed;
 
-            MirrorParent = Path.GetFullPath(mirrorParent);
-            MirrorChild = Path.GetFullPath(mirrorChild);
+            _fileCacheLock = new object();
+
+            MirrorParentPath = Path.GetFullPath(mirrorParent);
+            MirrorChildrenPaths = mirrorChildren.Select(Path.GetFullPath).ToList();
         }
+
+        #region METHODS
 
         public void Start() {
             _pollTimer.Start();
         }
 
-        private void pollTimerElapsed(object source, ElapsedEventArgs args) {
-            DirectoryInfo parentDirInfo = new DirectoryInfo(MirrorParent);
-            DirectoryInfo childDirInfo = new DirectoryInfo(MirrorParent);
+        private void Tick() {
+            DirectoryInfo parentDirInfo = new DirectoryInfo(MirrorParentPath);
 
-            lock (_fileCacheLock) {
-                foreach (FileInfo fileInfo in dirInfo.EnumerateFiles()) {
-                    if (!_parentFileCache.Keys.Contains(fileInfo.FullName)) {
-                        _parentFileCache.Add(fileInfo.FullName, fileInfo.LastAccessTimeUtc);
-                    }
+            if (parentDirInfo.LastWriteTimeUtc > _parentCache.LastWriteTimeUtc) {
+                lock (_fileCacheLock) {
+                    _parentCache.LastWriteTimeUtc = parentDirInfo.LastWriteTimeUtc;
 
-                    if (fileInfo.LastAccessTimeUtc > _parentFileCache[fileInfo.FullName]) {
-                        fileInfo.CopyTo(MirrorChild);
+                    foreach (FileInfo fileInfo in parentDirInfo.EnumerateFiles()) {
+                        if (!(_parentCache[fileInfo.FullName] == null)) {
+                            _parentCache[fileInfo.FullName] = new CacheFile(fileInfo.FullName, fileInfo.LastWriteTimeUtc);
+                        }
 
-                        Console.WriteLine($"Copied {fileInfo.FullName}");
+                        if (fileInfo.LastAccessTimeUtc > _parentCache[fileInfo.FullName].LastWriteTimeUtc) {
+                            _parentCache[fileInfo.FullName].LastWriteTimeUtc = fileInfo.LastWriteTimeUtc;
 
-                        return;
+                            fileInfo.CopyTo(MirrorChildrenPaths);
+
+                            Console.WriteLine($"Copied {fileInfo.FullName}");
+
+                            return;
+                        }
                     }
                 }
             }
         }
+
+        #endregion
+
+        #region EVENT
+
+        private void pollTimerElapsed(object source, ElapsedEventArgs args) {
+            Tick();
+        }
+
+        #endregion
+
+        #region INIT
 
         private void Initialise() {
-            DirectoryInfo parentDirInfo = new DirectoryInfo(MirrorParent);
-            DirectoryInfo childDirInfo = new DirectoryInfo(MirrorParent);
+            InitialiseParentCache();
+        }
 
-            lock (_fileCacheLock) {
-                foreach (FileInfo file in parentDirInfo.EnumerateFiles()) {
-                    _parentFileCache.Add(file.FullName, file.LastWriteTimeUtc);
-                }
+        private void InitialiseParentCache() {
+            DirectoryInfo parentDirInfo = new DirectoryInfo(MirrorParentPath);
+            _parentCache = new FileCache(parentDirInfo.LastWriteTimeUtc);
 
-                foreach (FileInfo file in childDirInfo.EnumerateFiles()) {
-                    _childFileCache.Add(file.FullName, file.LastWriteTimeUtc);
-                }
+            foreach (FileInfo file in parentDirInfo.EnumerateFiles()) {
+                _parentCache[file.FullName] = new CacheFile(file.FullName, file.LastWriteTimeUtc);
             }
         }
+
+        private void InitialiseChildCaches() {
+
+        }
+
+        #endregion
     }
 }
