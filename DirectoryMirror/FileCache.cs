@@ -79,6 +79,10 @@ namespace DirectoryMirror {
 
         private int IndexOf(CacheFile[] files, string index) {
             for (int i = 0; i < files.Length; i++) {
+                if (files[i] == null) {
+                    continue;
+                }
+
                 if (files[i].FullName.Equals(index)) {
                     return i;
                 }

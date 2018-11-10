@@ -17,7 +17,7 @@ namespace DirectoryMirror {
         }
 
         private static void Main(string[] args) {
-            _watcher = new DirectoryWatcher(1000, @"C:\Users\semiv\OneDrive\Documents\Test", @"C:\Users\semiv\Downloads\TestCopyTo");
+            _watcher = new DirectoryWatcher(100000, @"C:\Users\semiv\OneDrive\Documents\Test", @"C:\Users\semiv\Downloads\TestCopyTo");
             _resetEvent = new ManualResetEvent(false);
 
             _watcher.Start();

@@ -11,7 +11,6 @@ namespace DirectoryMirror {
         private Timer _pollTimer;
         private object _fileCacheLock { get; }
         private FileCache _parentCache { get; set; }
-        private List<FileCache> _childCaches { get; set; }
 
         public string MirrorParentPath { get; set; }
         public List<string> MirrorChildrenPaths { get; set; }
@@ -26,6 +25,8 @@ namespace DirectoryMirror {
 
             MirrorParentPath = Path.GetFullPath(mirrorParent);
             MirrorChildrenPaths = mirrorChildren.Select(Path.GetFullPath).ToList();
+
+            Initialise();
         }
 
         #region METHODS
@@ -36,28 +37,47 @@ namespace DirectoryMirror {
 
         private void Tick() {
             DirectoryInfo parentDirInfo = new DirectoryInfo(MirrorParentPath);
+            VerifyParentCache(parentDirInfo);
 
-            if (parentDirInfo.LastWriteTimeUtc > _parentCache.LastWriteTimeUtc) {
+            foreach (string path in MirrorChildrenPaths) {
+                DirectoryInfo childDirectory = new DirectoryInfo(path);
+
+                IEnumerable<CacheFile> files = childDirectory.EnumerateFiles().Select(file => new CacheFile(file.FullName, file.LastWriteTimeUtc));
+
+                for (int i = 0; i < _parentCache.Length; i++) {
+                    if ()
+                }
+            }
+        }
+
+        private void VerifyParentCache(DirectoryInfo parentDirectory) {
+            if (parentDirectory.LastWriteTimeUtc > _parentCache.LastWriteTimeUtc) {
                 lock (_fileCacheLock) {
-                    _parentCache.LastWriteTimeUtc = parentDirInfo.LastWriteTimeUtc;
+                    _parentCache.LastWriteTimeUtc = parentDirectory.LastWriteTimeUtc;
 
-                    foreach (FileInfo fileInfo in parentDirInfo.EnumerateFiles()) {
-                        if (!(_parentCache[fileInfo.FullName] == null)) {
-                            _parentCache[fileInfo.FullName] = new CacheFile(fileInfo.FullName, fileInfo.LastWriteTimeUtc);
+                    foreach (FileInfo file in parentDirectory.EnumerateFiles()) {
+                        if (_parentCache[file.FullName] == null) {
+                            _parentCache[file.FullName] = new CacheFile(file.FullName, file.LastWriteTimeUtc);
                         }
 
-                        if (fileInfo.LastAccessTimeUtc > _parentCache[fileInfo.FullName].LastWriteTimeUtc) {
-                            _parentCache[fileInfo.FullName].LastWriteTimeUtc = fileInfo.LastWriteTimeUtc;
-
-                            fileInfo.CopyTo(MirrorChildrenPaths);
-
-                            Console.WriteLine($"Copied {fileInfo.FullName}");
+                        if (file.LastAccessTimeUtc > _parentCache[file.FullName].LastWriteTimeUtc) {
+                            PropagateFileChange(file);
 
                             return;
                         }
                     }
                 }
             }
+        }
+
+        private void PropagateFileChange(FileInfo file) {
+            _parentCache[file.FullName].LastWriteTimeUtc = file.LastWriteTimeUtc;
+
+            foreach (string path in MirrorChildrenPaths) {
+                file.CopyTo(path);
+            }
+
+            Console.WriteLine($"Copied {file.FullName}");
         }
 
         #endregion
@@ -74,6 +94,7 @@ namespace DirectoryMirror {
 
         private void Initialise() {
             InitialiseParentCache();
+            InitialiseChildCaches();
         }
 
         private void InitialiseParentCache() {
@@ -82,11 +103,8 @@ namespace DirectoryMirror {
 
             foreach (FileInfo file in parentDirInfo.EnumerateFiles()) {
                 _parentCache[file.FullName] = new CacheFile(file.FullName, file.LastWriteTimeUtc);
+                Console.WriteLine($"Read {file.FullName}");
             }
-        }
-
-        private void InitialiseChildCaches() {
-
         }
 
         #endregion
